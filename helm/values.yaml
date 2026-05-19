@@ -1,0 +1,65 @@
+# Default values for ontology-ta.
+
+# -- Docker Registry Secret name used to access a private registry
+dockerRegistrySecretName: regcred
+
+image:
+  # -- Image repository
+  registry: registry.gitlab.com/agilefactory/witboost.mesh/witboost.kgm.adapters/witboost.kgm.adapters.businessontologyadapter
+  # -- Image tag
+  tag: latest
+  # -- Image pull policy
+  pullPolicy: Always
+
+# -- Number of replicas
+replicaCount: 1
+
+annotations:
+  reloader.stakater.com/auto: "true"
+
+# -- Readiness probe
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  failureThreshold: 5
+
+# -- Liveness probe
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  failureThreshold: 5
+
+# -- Security context
+securityContext:
+  runAsUser: 1001
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+
+# -- Container resource limits/requests
+resources: {}
+
+# -- Common labels
+labels: {}
+
+# -- Service Account
+serviceAccount:
+  create: false
+  name: ""
+
+# -- Override application.yaml via ConfigMap
+configOverride: {}
+
+# -- PostgreSQL database name
+dbName: ontology_ta
+
+# -- PostgreSQL schema name
+dbSchema: ontology_ta
+
+# -- Extra environment variables
+extraEnvVars: []

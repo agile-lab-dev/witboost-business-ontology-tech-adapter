@@ -1,0 +1,1161 @@
+openapi: 3.0.3
+info:
+  title: Tech Adapter API
+  description: |
+    <a href="/openapi/techadapter/interface-specification.yml" target="_blank" download="tech-adapter-openapi.yaml"><button>Download OpenAPI Specification</button></a>
+    
+    A **Tech Adapter**, previously known as Specific Provisioner, is responsible to provision and unprovision resources into a target technology by leveraging a Witboost descriptor. 
+    
+    By implementing this Open API contract, the Tech Adapter microservice can be used by the Witboost platform to deploy, undeploy, and eventually manage the access control list of the technology components. 
+    
+    Once you deploy the Tech Adapter microservice, you can register it in the Witboost platform using the Builder API.
+    The API is also used to validate the provisioning descriptors and to execute reverse provisioning operations.
+    
+    # Base URL
+
+    A Tech Adapter is not meant to be called directly by users from their browsers, but instead it is called by the Witboost Control Plane. Therefore, the base URL of the API will depend on the network address given by the Kubernetes network e.g. `http://<service k8s endpoint name>.<namespace>:<port>`. Below, we are providing an example base URL, yours may differ.
+    
+    Out of the box, Witboost ships with a Mock Tech Adapter which helps to craft use-cases where you just want your deployment pipeline to turn green for some or all components of a project without making any infrastructure change. Please, mind those differences when looking at the base URLs of the HTTP endpoints listed in this specification.
+
+  version: 2.6.3
+servers:
+  - url: /datamesh.specificprovisioner # this is used by the API generator
+  - url: http://mock-specific-provisioner:8093/datamesh.specificprovisioner
+    description: Witboost Mock Tech Adapter
+  - url: http://tech-adapter.{namespace}:{port}
+    description: Tech Adapter
+    variables:
+      namespace:
+        default: default
+      port:
+        default: "8093"
+tags:
+  - name: TechAdapter
+paths:
+  /v2/validate:
+    post:
+      tags:
+        - TechAdapter
+      summary: Validate a provisioning request (async)
+      description: |
+        Start a validation process with the input descriptor and return a token that can be used to check the status of the validation process.
+        
+        You want to implement this endpoint to assess that the provided resource descriptor conforms to the expected structure and has all the necessary information to be deployed on the infrastructure.
+        
+        **Implementing the asynchronous endpoint rather than the synchronous one is highly recommended even if the validation operation is not time-consuming.**
+      operationId: asyncValidate
+      requestBody:
+        description: Details of a provisioning request to be validated
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisioningRequest'
+            examples:
+              'System Descriptor':
+                value:
+                  descriptorKind: DATAPRODUCT_DESCRIPTOR
+                  descriptor: "dataProductOwnerDisplayName: John Smith\nprojectOwner: user:john.smith_example.com\nprojectOwnerDisplayName: John Smith\nenvironment: production\ndomain: finance\nprojectKind: system\nkind: dataproduct\ndomainId: urn:dmb:dmn:finance\nid: urn:dmb:dp:finance:cashflow:0\ndescription: Data product representing operating cashflows\ndevGroup: teamalpha\nownerGroup: john.smith_example.com\ndataProductOwner: user:john.smith_example.com\nversion: 0.1.0\nfullyQualifiedName: Cash Flows\nname: CashFlow\ninformationSLA: daily\nmaturity: Approved\nuseCaseTemplateId: urn:dmb:utm:dataproduct-template:0.0.0\ninfrastructureTemplateId: urn:dmb:itm:dataproduct-provisioner:1\nbilling: {}\ntags: []\nspecific: {}\ncomponents:\n  - kind: outputport\n    id: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port\n    description: Output port exposing cashflow data\n    name: CashFlow OutputPort\n    fullyQualifiedName: null\n    version: 0.0.0\n    infrastructureTemplateId: urn:dmb:itm:output-port-provisioner:1\n    useCaseTemplateId: urn:dmb:utm:output-port-template:1.0.0\n    dependsOn: []\n    platform: AWS\n    technology: S3\n    outputPortType: SQL\n    creationDate: null\n    startDate: null\n    processDescription: null\n    dataContract:\n      schema:\n        - name: id\n          dataType: string\n          tags: []\n        - name: direction\n          dataType: string\n          tags: []\n        - name: amount\n          dataType: number\n          description: monetary value of the cashflow\n          tags: []\n        - name: counterpartyId\n          dataType: string\n          description: identifier of the counterparty\n          tags: []\n      termsAndConditions: \"\"\n      endpoint: null\n      SLA:\n        intervalOfChange: 2 day\n        timeliness: 2 day\n        upTime: 99.9%\n    dataSharingAgreement:\n      purpose: \"\"\n      billing: \"\"\n      security: \"\"\n      intendedUsage: \"\"\n      limitations: \"\"\n      lifeCycle: \"\"\n      confidentiality: \"\"\n    tags: []\n    sampleData:\n      columns:\n        - id\n        - direction\n        - amount\n        - counterpartyId\n      rows:\n        - - CF-001\n          - Incoming\n          - 10000\n          - cpty:12345\n        - - CF-002\n          - Outgoing\n          - 5000\n          - cpty:67890\n    semanticLinking: []\n    specific:\n      format: Iceberg\n    consumable: true\n    shoppable: true\n  - kind: workload\n    id: urn:dmb:cmp:finance:cashflow:0:cashflow-calculation\n    description: Workload that calculates cashflows from input deals\n    useCaseTemplateId: urn:dmb:utm:workload-template:0.0.0\n    infrastructureTemplateId: urn:dmb:itm:workload-provisioner:1\n    fullyQualifiedName: CashFlow Calculation\n    name: CashFlow Calculation\n    technology: Spark\n    version: 0.0.0\n    dependsOn:\n      - urn:dmb:cmp:finance:cashflow:0:storage-component\n    readsFrom: []\n    tags: []\n    specific: {}\n    consumable: false\n    shoppable: false\n  - kind: storage\n    id: urn:dmb:cmp:finance:cashflow:0:storage-component\n    description: Internal storage for the data product\n    name: Storage Component\n    fullyQualifiedName: Internal Storage\n    version: 0.0.0\n    infrastructureTemplateId: urn:dmb:itm:storage-provisioner:0\n    useCaseTemplateId: urn:dmb:utm:storage-template:0.0.0\n    dependsOn: []\n    platform: AWS\n    technology: S3\n    storageType: Database\n    tags: []\n    specific:\n      bucket: finance-cashflows\n    consumable: false\n    shoppable: false"
+                  removeData: false
+              'Component Descriptor':
+                value:
+                  descriptorKind: COMPONENT_DESCRIPTOR
+                  descriptor: "dataProduct:\n  dataProductOwnerDisplayName: John Smith\n  projectOwner: user:john.smith_example.com\n  projectOwnerDisplayName: John Smith\n  environment: production\n  domain: finance\n  projectKind: system\n  kind: dataproduct\n  domainId: urn:dmb:dmn:finance\n  id: urn:dmb:dp:finance:cashflow:0\n  description: Data product representing operating cashflows\n  devGroup: teamalpha\n  ownerGroup: john.smith_example.com\n  dataProductOwner: user:john.smith_example.com\n  version: 0.1.0\n  fullyQualifiedName: Cash Flows\n  name: CashFlow\n  informationSLA: daily\n  maturity: Approved\n  useCaseTemplateId: urn:dmb:utm:dataproduct-template:0.0.0\n  infrastructureTemplateId: urn:dmb:itm:dataproduct-provisioner:1\n  billing: {}\n  tags: []\n  specific: {}\n  components:\n    - kind: outputport\n      id: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port\n      description: Output port exposing cashflow data\n      name: CashFlow OutputPort\n      fullyQualifiedName: null\n      version: 0.0.0\n      infrastructureTemplateId: urn:dmb:itm:output-port-provisioner:1\n      useCaseTemplateId: urn:dmb:utm:output-port-template:1.0.0\n      dependsOn: []\n      platform: AWS\n      technology: S3\n      outputPortType: SQL\n      creationDate: null\n      startDate: null\n      processDescription: null\n      dataContract:\n        schema:\n          - name: id\n            dataType: string\n            tags: []\n          - name: direction\n            dataType: string\n            tags: []\n          - name: amount\n            dataType: number\n            description: monetary value of the cashflow\n            tags: []\n          - name: counterpartyId\n            dataType: string\n            description: identifier of the counterparty\n            tags: []\n        termsAndConditions: \"\"\n        endpoint: null\n        SLA:\n          intervalOfChange: 2 day\n          timeliness: 2 day\n          upTime: 99.9%\n      dataSharingAgreement:\n        purpose: \"\"\n        billing: \"\"\n        security: \"\"\n        intendedUsage: \"\"\n        limitations: \"\"\n        lifeCycle: \"\"\n        confidentiality: \"\"\n      tags: []\n      sampleData:\n        columns:\n          - id\n          - direction\n          - amount\n          - counterpartyId\n        rows:\n          - - CF-001\n            - Incoming\n            - 10000\n            - cpty:12345\n          - - CF-002\n            - Outgoing\n            - 5000\n            - cpty:67890\n      semanticLinking: []\n      specific:\n        format: Iceberg\n      consumable: true\n      shoppable: true\n    - kind: workload\n      id: urn:dmb:cmp:finance:cashflow:0:cashflow-calculation\n      description: Workload that calculates cashflows from input deals\n      useCaseTemplateId: urn:dmb:utm:workload-template:0.0.0\n      infrastructureTemplateId: urn:dmb:itm:workload-provisioner:1\n      fullyQualifiedName: CashFlow Calculation\n      name: CashFlow Calculation\n      technology: Spark\n      version: 0.0.0\n      dependsOn:\n        - urn:dmb:cmp:finance:cashflow:0:storage-component\n      readsFrom: []\n      tags: []\n      specific: {}\n      consumable: false\n      shoppable: false\n    - kind: storage\n      id: urn:dmb:cmp:finance:cashflow:0:storage-component\n      description: Internal storage for the data product\n      name: Storage Component\n      fullyQualifiedName: Internal Storage\n      version: 0.0.0\n      infrastructureTemplateId: urn:dmb:itm:storage-provisioner:0\n      useCaseTemplateId: urn:dmb:utm:storage-template:0.0.0\n      dependsOn: []\n      platform: AWS\n      technology: S3\n      storageType: Database\n      tags: []\n      specific:\n        bucket: finance-cashflows\n      consumable: false\n      shoppable: false\ncomponentIdToProvision: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port"
+                  removeData: false
+        required: true
+      responses:
+        202:
+          description: It returns a token that can be used for polling the async validation operation status and results
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples: 
+                success:
+                  value: 3da5d0a2-9f3b-4a11-85a3-b5ddb73da032
+        400:
+          description: Invalid Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+              examples:
+                missingDescriptor:
+                  value:
+                    errors:
+                      - descriptor is required
+                    userMessage: The descriptor field is required
+                    moreInfo:
+                      problems:
+                        - The descriptor field is required
+                    solutions:
+                      - Please provide a valid descriptor
+        500:
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples:
+                systemError:
+                  value:
+                    error: "Internal server error"
+                    userMessage: "An internal server error occurred"
+                    moreInfo:
+                      problems: 
+                        - "The server encountered an internal error"
+                      solutions: 
+                        - "Please try again later"
+  /v2/validate/{token}/status:
+    get:
+      tags:
+        - TechAdapter
+      summary: Get status of an async validation task
+      operationId: getValidationStatus
+      parameters:
+        - name: token
+          in: path
+          description: Token obtained after a call to the async validate endpoint
+          required: true
+          schema:
+            type: string
+            example: 3da5d0a2-9f3b-4a11-85a3-b5ddb73da032
+      responses:
+        200:
+          description: Validation Task status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationStatus'
+              examples:
+                success:
+                  value:
+                    status: COMPLETED
+                    info:
+                      publicInfo:
+                        valid: true
+                failure:
+                  value:
+                    status: COMPLETED
+                    info:
+                      publicInfo:
+                        valid: false
+                        error:
+                          errors:
+                            - specific.region is required
+        400:
+          description: Invalid Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+              examples:
+                badToken:
+                  value:
+                    errors:
+                      - validation operation not found
+                    userMessage: There is no validation process with the provided token
+                    moreInfo:
+                      problems:
+                        - There is no validation process with the provided token
+                      solutions:
+                        - Please check if the token is correct
+        500:
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples:
+                systemError:
+                  value:
+                    error: "Internal server error"
+                    userMessage: "An internal server error occurred"
+                    moreInfo:
+                      problems: [ "The server encountered an internal error" ]
+                      solutions: [ "Please try again later" ]
+  /v1/validate:
+    post:
+      tags:
+        - TechAdapter
+      summary: Validate a provisioning request (sync)
+      description: |
+        Synchronously validate a provisioning request and return the validation result.
+        
+        You want to implement this endpoint to assess that the provided resource descriptor conforms to the expected structure and has all the necessary information to be deployed on the infrastructure.
+        
+        **It is highly recommended to implement the asynchronous validation endpoint instead of this one.**
+      operationId: validate
+      requestBody:
+        description: Details of a provisioning request to be validated
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisioningRequest'
+            examples:
+              'System Descriptor':
+                value:
+                  descriptorKind: DATAPRODUCT_DESCRIPTOR
+                  descriptor: "dataProductOwnerDisplayName: John Smith\nprojectOwner: user:john.smith_example.com\nprojectOwnerDisplayName: John Smith\nenvironment: production\ndomain: finance\nprojectKind: system\nkind: dataproduct\ndomainId: urn:dmb:dmn:finance\nid: urn:dmb:dp:finance:cashflow:0\ndescription: Data product representing operating cashflows\ndevGroup: teamalpha\nownerGroup: john.smith_example.com\ndataProductOwner: user:john.smith_example.com\nversion: 0.1.0\nfullyQualifiedName: Cash Flows\nname: CashFlow\ninformationSLA: daily\nmaturity: Approved\nuseCaseTemplateId: urn:dmb:utm:dataproduct-template:0.0.0\ninfrastructureTemplateId: urn:dmb:itm:dataproduct-provisioner:1\nbilling: {}\ntags: []\nspecific: {}\ncomponents:\n  - kind: outputport\n    id: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port\n    description: Output port exposing cashflow data\n    name: CashFlow OutputPort\n    fullyQualifiedName: null\n    version: 0.0.0\n    infrastructureTemplateId: urn:dmb:itm:output-port-provisioner:1\n    useCaseTemplateId: urn:dmb:utm:output-port-template:1.0.0\n    dependsOn: []\n    platform: AWS\n    technology: S3\n    outputPortType: SQL\n    creationDate: null\n    startDate: null\n    processDescription: null\n    dataContract:\n      schema:\n        - name: id\n          dataType: string\n          tags: []\n        - name: direction\n          dataType: string\n          tags: []\n        - name: amount\n          dataType: number\n          description: monetary value of the cashflow\n          tags: []\n        - name: counterpartyId\n          dataType: string\n          description: identifier of the counterparty\n          tags: []\n      termsAndConditions: \"\"\n      endpoint: null\n      SLA:\n        intervalOfChange: 2 day\n        timeliness: 2 day\n        upTime: 99.9%\n    dataSharingAgreement:\n      purpose: \"\"\n      billing: \"\"\n      security: \"\"\n      intendedUsage: \"\"\n      limitations: \"\"\n      lifeCycle: \"\"\n      confidentiality: \"\"\n    tags: []\n    sampleData:\n      columns:\n        - id\n        - direction\n        - amount\n        - counterpartyId\n      rows:\n        - - CF-001\n          - Incoming\n          - 10000\n          - cpty:12345\n        - - CF-002\n          - Outgoing\n          - 5000\n          - cpty:67890\n    semanticLinking: []\n    specific:\n      format: Iceberg\n    consumable: true\n    shoppable: true\n  - kind: workload\n    id: urn:dmb:cmp:finance:cashflow:0:cashflow-calculation\n    description: Workload that calculates cashflows from input deals\n    useCaseTemplateId: urn:dmb:utm:workload-template:0.0.0\n    infrastructureTemplateId: urn:dmb:itm:workload-provisioner:1\n    fullyQualifiedName: CashFlow Calculation\n    name: CashFlow Calculation\n    technology: Spark\n    version: 0.0.0\n    dependsOn:\n      - urn:dmb:cmp:finance:cashflow:0:storage-component\n    readsFrom: []\n    tags: []\n    specific: {}\n    consumable: false\n    shoppable: false\n  - kind: storage\n    id: urn:dmb:cmp:finance:cashflow:0:storage-component\n    description: Internal storage for the data product\n    name: Storage Component\n    fullyQualifiedName: Internal Storage\n    version: 0.0.0\n    infrastructureTemplateId: urn:dmb:itm:storage-provisioner:0\n    useCaseTemplateId: urn:dmb:utm:storage-template:0.0.0\n    dependsOn: []\n    platform: AWS\n    technology: S3\n    storageType: Database\n    tags: []\n    specific:\n      bucket: finance-cashflows\n    consumable: false\n    shoppable: false"
+                  removeData: false
+              'Component Descriptor':
+                value:
+                  descriptorKind: COMPONENT_DESCRIPTOR
+                  descriptor: "dataProduct:\n  dataProductOwnerDisplayName: John Smith\n  projectOwner: user:john.smith_example.com\n  projectOwnerDisplayName: John Smith\n  environment: production\n  domain: finance\n  projectKind: system\n  kind: dataproduct\n  domainId: urn:dmb:dmn:finance\n  id: urn:dmb:dp:finance:cashflow:0\n  description: Data product representing operating cashflows\n  devGroup: teamalpha\n  ownerGroup: john.smith_example.com\n  dataProductOwner: user:john.smith_example.com\n  version: 0.1.0\n  fullyQualifiedName: Cash Flows\n  name: CashFlow\n  informationSLA: daily\n  maturity: Approved\n  useCaseTemplateId: urn:dmb:utm:dataproduct-template:0.0.0\n  infrastructureTemplateId: urn:dmb:itm:dataproduct-provisioner:1\n  billing: {}\n  tags: []\n  specific: {}\n  components:\n    - kind: outputport\n      id: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port\n      description: Output port exposing cashflow data\n      name: CashFlow OutputPort\n      fullyQualifiedName: null\n      version: 0.0.0\n      infrastructureTemplateId: urn:dmb:itm:output-port-provisioner:1\n      useCaseTemplateId: urn:dmb:utm:output-port-template:1.0.0\n      dependsOn: []\n      platform: AWS\n      technology: S3\n      outputPortType: SQL\n      creationDate: null\n      startDate: null\n      processDescription: null\n      dataContract:\n        schema:\n          - name: id\n            dataType: string\n            tags: []\n          - name: direction\n            dataType: string\n            tags: []\n          - name: amount\n            dataType: number\n            description: monetary value of the cashflow\n            tags: []\n          - name: counterpartyId\n            dataType: string\n            description: identifier of the counterparty\n            tags: []\n        termsAndConditions: \"\"\n        endpoint: null\n        SLA:\n          intervalOfChange: 2 day\n          timeliness: 2 day\n          upTime: 99.9%\n      dataSharingAgreement:\n        purpose: \"\"\n        billing: \"\"\n        security: \"\"\n        intendedUsage: \"\"\n        limitations: \"\"\n        lifeCycle: \"\"\n        confidentiality: \"\"\n      tags: []\n      sampleData:\n        columns:\n          - id\n          - direction\n          - amount\n          - counterpartyId\n        rows:\n          - - CF-001\n            - Incoming\n            - 10000\n            - cpty:12345\n          - - CF-002\n            - Outgoing\n            - 5000\n            - cpty:67890\n      semanticLinking: []\n      specific:\n        format: Iceberg\n      consumable: true\n      shoppable: true\n    - kind: workload\n      id: urn:dmb:cmp:finance:cashflow:0:cashflow-calculation\n      description: Workload that calculates cashflows from input deals\n      useCaseTemplateId: urn:dmb:utm:workload-template:0.0.0\n      infrastructureTemplateId: urn:dmb:itm:workload-provisioner:1\n      fullyQualifiedName: CashFlow Calculation\n      name: CashFlow Calculation\n      technology: Spark\n      version: 0.0.0\n      dependsOn:\n        - urn:dmb:cmp:finance:cashflow:0:storage-component\n      readsFrom: []\n      tags: []\n      specific: {}\n      consumable: false\n      shoppable: false\n    - kind: storage\n      id: urn:dmb:cmp:finance:cashflow:0:storage-component\n      description: Internal storage for the data product\n      name: Storage Component\n      fullyQualifiedName: Internal Storage\n      version: 0.0.0\n      infrastructureTemplateId: urn:dmb:itm:storage-provisioner:0\n      useCaseTemplateId: urn:dmb:utm:storage-template:0.0.0\n      dependsOn: []\n      platform: AWS\n      technology: S3\n      storageType: Database\n      tags: []\n      specific:\n        bucket: finance-cashflows\n      consumable: false\n      shoppable: false\ncomponentIdToProvision: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port"
+                  removeData: false
+        required: true
+      responses:
+        200:
+          description: Validation Task result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+              examples: 
+                validDescriptor:
+                  value:
+                    valid: true
+                invalidDescriptor:
+                  value:
+                    valid: false
+                    error:
+                      errors:
+                        - specific.region is required
+        500:
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples: 
+                systemError:
+                  value:
+                    error: "Internal server error"
+                    userMessage: "An internal server error occurred"
+                    moreInfo:
+                      problems: [ "The server encountered an internal error" ]
+                      solutions: [ "Please try again later" ]
+  /v1/provision:
+    post:
+      tags:
+        - TechAdapter
+      summary: Provision a resource
+      description: |
+        Deploy a system or a single component starting from its descriptor. 
+
+        The descriptor is a YAML file that describes the resource to be deployed. The structure of the descriptor changes according to the `descriptorKind` field.
+      operationId: provision
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisioningRequest'
+            examples:
+              'System Descriptor':
+                value:
+                  descriptorKind: DATAPRODUCT_DESCRIPTOR
+                  descriptor: "dataProductOwnerDisplayName: John Smith\nprojectOwner: user:john.smith_example.com\nprojectOwnerDisplayName: John Smith\nenvironment: production\ndomain: finance\nprojectKind: system\nkind: dataproduct\ndomainId: urn:dmb:dmn:finance\nid: urn:dmb:dp:finance:cashflow:0\ndescription: Data product representing operating cashflows\ndevGroup: teamalpha\nownerGroup: john.smith_example.com\ndataProductOwner: user:john.smith_example.com\nversion: 0.1.0\nfullyQualifiedName: Cash Flows\nname: CashFlow\ninformationSLA: daily\nmaturity: Approved\nuseCaseTemplateId: urn:dmb:utm:dataproduct-template:0.0.0\ninfrastructureTemplateId: urn:dmb:itm:dataproduct-provisioner:1\nbilling: {}\ntags: []\nspecific: {}\ncomponents:\n  - kind: outputport\n    id: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port\n    description: Output port exposing cashflow data\n    name: CashFlow OutputPort\n    fullyQualifiedName: null\n    version: 0.0.0\n    infrastructureTemplateId: urn:dmb:itm:output-port-provisioner:1\n    useCaseTemplateId: urn:dmb:utm:output-port-template:1.0.0\n    dependsOn: []\n    platform: AWS\n    technology: S3\n    outputPortType: SQL\n    creationDate: null\n    startDate: null\n    processDescription: null\n    dataContract:\n      schema:\n        - name: id\n          dataType: string\n          tags: []\n        - name: direction\n          dataType: string\n          tags: []\n        - name: amount\n          dataType: number\n          description: monetary value of the cashflow\n          tags: []\n        - name: counterpartyId\n          dataType: string\n          description: identifier of the counterparty\n          tags: []\n      termsAndConditions: \"\"\n      endpoint: null\n      SLA:\n        intervalOfChange: 2 day\n        timeliness: 2 day\n        upTime: 99.9%\n    dataSharingAgreement:\n      purpose: \"\"\n      billing: \"\"\n      security: \"\"\n      intendedUsage: \"\"\n      limitations: \"\"\n      lifeCycle: \"\"\n      confidentiality: \"\"\n    tags: []\n    sampleData:\n      columns:\n        - id\n        - direction\n        - amount\n        - counterpartyId\n      rows:\n        - - CF-001\n          - Incoming\n          - 10000\n          - cpty:12345\n        - - CF-002\n          - Outgoing\n          - 5000\n          - cpty:67890\n    semanticLinking: []\n    specific:\n      format: Iceberg\n    consumable: true\n    shoppable: true\n  - kind: workload\n    id: urn:dmb:cmp:finance:cashflow:0:cashflow-calculation\n    description: Workload that calculates cashflows from input deals\n    useCaseTemplateId: urn:dmb:utm:workload-template:0.0.0\n    infrastructureTemplateId: urn:dmb:itm:workload-provisioner:1\n    fullyQualifiedName: CashFlow Calculation\n    name: CashFlow Calculation\n    technology: Spark\n    version: 0.0.0\n    dependsOn:\n      - urn:dmb:cmp:finance:cashflow:0:storage-component\n    readsFrom: []\n    tags: []\n    specific: {}\n    consumable: false\n    shoppable: false\n  - kind: storage\n    id: urn:dmb:cmp:finance:cashflow:0:storage-component\n    description: Internal storage for the data product\n    name: Storage Component\n    fullyQualifiedName: Internal Storage\n    version: 0.0.0\n    infrastructureTemplateId: urn:dmb:itm:storage-provisioner:0\n    useCaseTemplateId: urn:dmb:utm:storage-template:0.0.0\n    dependsOn: []\n    platform: AWS\n    technology: S3\n    storageType: Database\n    tags: []\n    specific:\n      bucket: finance-cashflows\n    consumable: false\n    shoppable: false"
+                  removeData: false
+              'Component Descriptor':
+                value:
+                  descriptorKind: COMPONENT_DESCRIPTOR
+                  descriptor: "dataProduct:\n  dataProductOwnerDisplayName: John Smith\n  projectOwner: user:john.smith_example.com\n  projectOwnerDisplayName: John Smith\n  environment: production\n  domain: finance\n  projectKind: system\n  kind: dataproduct\n  domainId: urn:dmb:dmn:finance\n  id: urn:dmb:dp:finance:cashflow:0\n  description: Data product representing operating cashflows\n  devGroup: teamalpha\n  ownerGroup: john.smith_example.com\n  dataProductOwner: user:john.smith_example.com\n  version: 0.1.0\n  fullyQualifiedName: Cash Flows\n  name: CashFlow\n  informationSLA: daily\n  maturity: Approved\n  useCaseTemplateId: urn:dmb:utm:dataproduct-template:0.0.0\n  infrastructureTemplateId: urn:dmb:itm:dataproduct-provisioner:1\n  billing: {}\n  tags: []\n  specific: {}\n  components:\n    - kind: outputport\n      id: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port\n      description: Output port exposing cashflow data\n      name: CashFlow OutputPort\n      fullyQualifiedName: null\n      version: 0.0.0\n      infrastructureTemplateId: urn:dmb:itm:output-port-provisioner:1\n      useCaseTemplateId: urn:dmb:utm:output-port-template:1.0.0\n      dependsOn: []\n      platform: AWS\n      technology: S3\n      outputPortType: SQL\n      creationDate: null\n      startDate: null\n      processDescription: null\n      dataContract:\n        schema:\n          - name: id\n            dataType: string\n            tags: []\n          - name: direction\n            dataType: string\n            tags: []\n          - name: amount\n            dataType: number\n            description: monetary value of the cashflow\n            tags: []\n          - name: counterpartyId\n            dataType: string\n            description: identifier of the counterparty\n            tags: []\n        termsAndConditions: \"\"\n        endpoint: null\n        SLA:\n          intervalOfChange: 2 day\n          timeliness: 2 day\n          upTime: 99.9%\n      dataSharingAgreement:\n        purpose: \"\"\n        billing: \"\"\n        security: \"\"\n        intendedUsage: \"\"\n        limitations: \"\"\n        lifeCycle: \"\"\n        confidentiality: \"\"\n      tags: []\n      sampleData:\n        columns:\n          - id\n          - direction\n          - amount\n          - counterpartyId\n        rows:\n          - - CF-001\n            - Incoming\n            - 10000\n            - cpty:12345\n          - - CF-002\n            - Outgoing\n            - 5000\n            - cpty:67890\n      semanticLinking: []\n      specific:\n        format: Iceberg\n      consumable: true\n      shoppable: true\n    - kind: workload\n      id: urn:dmb:cmp:finance:cashflow:0:cashflow-calculation\n      description: Workload that calculates cashflows from input deals\n      useCaseTemplateId: urn:dmb:utm:workload-template:0.0.0\n      infrastructureTemplateId: urn:dmb:itm:workload-provisioner:1\n      fullyQualifiedName: CashFlow Calculation\n      name: CashFlow Calculation\n      technology: Spark\n      version: 0.0.0\n      dependsOn:\n        - urn:dmb:cmp:finance:cashflow:0:storage-component\n      readsFrom: []\n      tags: []\n      specific: {}\n      consumable: false\n      shoppable: false\n    - kind: storage\n      id: urn:dmb:cmp:finance:cashflow:0:storage-component\n      description: Internal storage for the data product\n      name: Storage Component\n      fullyQualifiedName: Internal Storage\n      version: 0.0.0\n      infrastructureTemplateId: urn:dmb:itm:storage-provisioner:0\n      useCaseTemplateId: urn:dmb:utm:storage-template:0.0.0\n      dependsOn: []\n      platform: AWS\n      technology: S3\n      storageType: Database\n      tags: []\n      specific:\n        bucket: finance-cashflows\n      consumable: false\n      shoppable: false\ncomponentIdToProvision: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port"
+                  removeData: false
+        required: true
+      responses:
+        200:
+          description: Provision Task result (sync)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningStatus'
+              examples: 
+                successfulProvision:
+                  value:
+                    status: COMPLETED
+                    info:
+                      publicInfo:
+                        valid: true
+                failedProvision:
+                  value:
+                    status: FAILED
+                    info:
+                      publicInfo:
+                        valid: false
+                        error:
+                          errors:
+                            - Tech Adapter is not authorized to deploy the resource
+        202:
+          description: Provision Task has been accepted
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Provision Task token that can be used to poll the request status
+              examples:
+                provisionAccepted:
+                  value: 3da5d0a2-9f3b-4a11-85a3-b5ddb73da032
+        400:
+          description: Invalid Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+              examples: 
+                missingDescriptor:
+                  value:
+                    errors:
+                      - descriptor is required
+                    userMessage: The descriptor field is required
+                    moreInfo:
+                      problems:
+                        - The descriptor field is required
+                    solutions:
+                      - Please provide a valid descriptor
+        500:
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples: 
+                systemError:
+                  value:
+                    error: "Internal server error"
+                    userMessage: "An internal server error occurred"
+                    moreInfo:
+                      problems: [ "The server encountered an internal error" ]
+                      solutions: [ "Please try again later" ]
+  /v1/unprovision:
+    post:
+      tags:
+        - TechAdapter
+      summary: Unprovision a resource
+      description: |
+        Undeploy a system or a single component starting from the latest provisioned descriptor. 
+
+        The descriptor is a YAML file that describes the resource to be deployed. The structure of the descriptor changes according to the `descriptorKind` field.
+      operationId: unprovision
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisioningRequest'
+            examples:
+              'System Descriptor':
+                value:
+                  descriptorKind: DATAPRODUCT_DESCRIPTOR
+                  descriptor: "dataProductOwnerDisplayName: John Smith\nprojectOwner: user:john.smith_example.com\nprojectOwnerDisplayName: John Smith\nenvironment: production\ndomain: finance\nprojectKind: system\nkind: dataproduct\ndomainId: urn:dmb:dmn:finance\nid: urn:dmb:dp:finance:cashflow:0\ndescription: Data product representing operating cashflows\ndevGroup: teamalpha\nownerGroup: john.smith_example.com\ndataProductOwner: user:john.smith_example.com\nversion: 0.1.0\nfullyQualifiedName: Cash Flows\nname: CashFlow\ninformationSLA: daily\nmaturity: Approved\nuseCaseTemplateId: urn:dmb:utm:dataproduct-template:0.0.0\ninfrastructureTemplateId: urn:dmb:itm:dataproduct-provisioner:1\nbilling: {}\ntags: []\nspecific: {}\ncomponents:\n  - kind: outputport\n    id: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port\n    description: Output port exposing cashflow data\n    name: CashFlow OutputPort\n    fullyQualifiedName: null\n    version: 0.0.0\n    infrastructureTemplateId: urn:dmb:itm:output-port-provisioner:1\n    useCaseTemplateId: urn:dmb:utm:output-port-template:1.0.0\n    dependsOn: []\n    platform: AWS\n    technology: S3\n    outputPortType: SQL\n    creationDate: null\n    startDate: null\n    processDescription: null\n    dataContract:\n      schema:\n        - name: id\n          dataType: string\n          tags: []\n        - name: direction\n          dataType: string\n          tags: []\n        - name: amount\n          dataType: number\n          description: monetary value of the cashflow\n          tags: []\n        - name: counterpartyId\n          dataType: string\n          description: identifier of the counterparty\n          tags: []\n      termsAndConditions: \"\"\n      endpoint: null\n      SLA:\n        intervalOfChange: 2 day\n        timeliness: 2 day\n        upTime: 99.9%\n    dataSharingAgreement:\n      purpose: \"\"\n      billing: \"\"\n      security: \"\"\n      intendedUsage: \"\"\n      limitations: \"\"\n      lifeCycle: \"\"\n      confidentiality: \"\"\n    tags: []\n    sampleData:\n      columns:\n        - id\n        - direction\n        - amount\n        - counterpartyId\n      rows:\n        - - CF-001\n          - Incoming\n          - 10000\n          - cpty:12345\n        - - CF-002\n          - Outgoing\n          - 5000\n          - cpty:67890\n    semanticLinking: []\n    specific:\n      format: Iceberg\n    consumable: true\n    shoppable: true\n  - kind: workload\n    id: urn:dmb:cmp:finance:cashflow:0:cashflow-calculation\n    description: Workload that calculates cashflows from input deals\n    useCaseTemplateId: urn:dmb:utm:workload-template:0.0.0\n    infrastructureTemplateId: urn:dmb:itm:workload-provisioner:1\n    fullyQualifiedName: CashFlow Calculation\n    name: CashFlow Calculation\n    technology: Spark\n    version: 0.0.0\n    dependsOn:\n      - urn:dmb:cmp:finance:cashflow:0:storage-component\n    readsFrom: []\n    tags: []\n    specific: {}\n    consumable: false\n    shoppable: false\n  - kind: storage\n    id: urn:dmb:cmp:finance:cashflow:0:storage-component\n    description: Internal storage for the data product\n    name: Storage Component\n    fullyQualifiedName: Internal Storage\n    version: 0.0.0\n    infrastructureTemplateId: urn:dmb:itm:storage-provisioner:0\n    useCaseTemplateId: urn:dmb:utm:storage-template:0.0.0\n    dependsOn: []\n    platform: AWS\n    technology: S3\n    storageType: Database\n    tags: []\n    specific:\n      bucket: finance-cashflows\n    consumable: false\n    shoppable: false"
+                  removeData: false
+              'Component Descriptor':
+                value:
+                  descriptorKind: COMPONENT_DESCRIPTOR
+                  descriptor: "dataProduct:\n  dataProductOwnerDisplayName: John Smith\n  projectOwner: user:john.smith_example.com\n  projectOwnerDisplayName: John Smith\n  environment: production\n  domain: finance\n  projectKind: system\n  kind: dataproduct\n  domainId: urn:dmb:dmn:finance\n  id: urn:dmb:dp:finance:cashflow:0\n  description: Data product representing operating cashflows\n  devGroup: teamalpha\n  ownerGroup: john.smith_example.com\n  dataProductOwner: user:john.smith_example.com\n  version: 0.1.0\n  fullyQualifiedName: Cash Flows\n  name: CashFlow\n  informationSLA: daily\n  maturity: Approved\n  useCaseTemplateId: urn:dmb:utm:dataproduct-template:0.0.0\n  infrastructureTemplateId: urn:dmb:itm:dataproduct-provisioner:1\n  billing: {}\n  tags: []\n  specific: {}\n  components:\n    - kind: outputport\n      id: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port\n      description: Output port exposing cashflow data\n      name: CashFlow OutputPort\n      fullyQualifiedName: null\n      version: 0.0.0\n      infrastructureTemplateId: urn:dmb:itm:output-port-provisioner:1\n      useCaseTemplateId: urn:dmb:utm:output-port-template:1.0.0\n      dependsOn: []\n      platform: AWS\n      technology: S3\n      outputPortType: SQL\n      creationDate: null\n      startDate: null\n      processDescription: null\n      dataContract:\n        schema:\n          - name: id\n            dataType: string\n            tags: []\n          - name: direction\n            dataType: string\n            tags: []\n          - name: amount\n            dataType: number\n            description: monetary value of the cashflow\n            tags: []\n          - name: counterpartyId\n            dataType: string\n            description: identifier of the counterparty\n            tags: []\n        termsAndConditions: \"\"\n        endpoint: null\n        SLA:\n          intervalOfChange: 2 day\n          timeliness: 2 day\n          upTime: 99.9%\n      dataSharingAgreement:\n        purpose: \"\"\n        billing: \"\"\n        security: \"\"\n        intendedUsage: \"\"\n        limitations: \"\"\n        lifeCycle: \"\"\n        confidentiality: \"\"\n      tags: []\n      sampleData:\n        columns:\n          - id\n          - direction\n          - amount\n          - counterpartyId\n        rows:\n          - - CF-001\n            - Incoming\n            - 10000\n            - cpty:12345\n          - - CF-002\n            - Outgoing\n            - 5000\n            - cpty:67890\n      semanticLinking: []\n      specific:\n        format: Iceberg\n      consumable: true\n      shoppable: true\n    - kind: workload\n      id: urn:dmb:cmp:finance:cashflow:0:cashflow-calculation\n      description: Workload that calculates cashflows from input deals\n      useCaseTemplateId: urn:dmb:utm:workload-template:0.0.0\n      infrastructureTemplateId: urn:dmb:itm:workload-provisioner:1\n      fullyQualifiedName: CashFlow Calculation\n      name: CashFlow Calculation\n      technology: Spark\n      version: 0.0.0\n      dependsOn:\n        - urn:dmb:cmp:finance:cashflow:0:storage-component\n      readsFrom: []\n      tags: []\n      specific: {}\n      consumable: false\n      shoppable: false\n    - kind: storage\n      id: urn:dmb:cmp:finance:cashflow:0:storage-component\n      description: Internal storage for the data product\n      name: Storage Component\n      fullyQualifiedName: Internal Storage\n      version: 0.0.0\n      infrastructureTemplateId: urn:dmb:itm:storage-provisioner:0\n      useCaseTemplateId: urn:dmb:utm:storage-template:0.0.0\n      dependsOn: []\n      platform: AWS\n      technology: S3\n      storageType: Database\n      tags: []\n      specific:\n        bucket: finance-cashflows\n      consumable: false\n      shoppable: false\ncomponentIdToProvision: urn:dmb:cmp:finance:cashflow:0:cashflow-output-port"
+                  removeData: false
+        required: true
+      responses:
+        200:
+          description: Unprovision Task result (sync)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningStatus'
+              examples:
+                successfulUnprovision:
+                  value:
+                    status: COMPLETED
+                    info:
+                      publicInfo:
+                        valid: true
+                failedUnprovision:
+                  value:
+                    status: FAILED
+                    info:
+                      publicInfo:
+                        valid: false
+                        error:
+                          errors:
+                            - Tech Adapter is not authorized to undeploy the resource
+        202:
+          description: Unprovision Task has been accepted
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Unprovision Task token that can be used to poll the request status
+              examples:
+                unprovisionAccepted:
+                  value: 3da5d0a2-9f3b-4a11-85a3-b5ddb73da032
+        400:
+          description: Invalid Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+              examples: 
+                missingDescriptor:
+                  value:
+                    errors:
+                      - descriptor is required
+                    userMessage: The descriptor field is required
+                    moreInfo:
+                      problems:
+                        - The descriptor field is required
+                    solutions:
+                      - Please provide a valid descriptor
+        500:
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples: 
+                systemError:
+                  value:
+                    error: "Internal server error"
+                    userMessage: "An internal server error occurred"
+                    moreInfo:
+                      problems: [ "The server encountered an internal error" ]
+                      solutions: [ "Please try again later" ]
+  /v1/provision/{token}/status:
+    get:
+      tags:
+        - TechAdapter
+      summary: Get the status of a provision/unprovision task
+      description: |
+        Get the status and the results of a provision/unprovision operation.
+
+        This endpoint is used by the Provisioning Coordinator to poll the status of a provision/unprovision task.
+      operationId: getStatus
+      parameters:
+        - name: token
+          in: path
+          description: Provisioning Task Token obtained after a call to the provision or unprovision endpoints
+          required: true
+          schema:
+            type: string
+            example: 3da5d0a2-9f3b-4a11-85a3-b5ddb73da032
+      responses:
+        200:
+          description: Provisioning/Unprovisioning Task Status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningStatus'
+              examples: 
+                runningProvision:
+                  value:
+                    status: RUNNING
+                completedProvision:
+                  value:
+                    status: COMPLETED
+                    info:
+                      publicInfo:
+                        valid: true
+                failedProvision:
+                  value:
+                    status: FAILED
+                    info:
+                      publicInfo:
+                        valid: false
+                        error:
+                          errors:
+                            - Tech Adapter is not authorized to deploy the resource
+        400:
+          description: Invalid Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+              examples: 
+                badToken:
+                  value:
+                    errors:
+                      - validation operation not found
+                    userMessage: There is no validation process with the provided token
+                    moreInfo:
+                      problems:
+                        - There is no validation process with the provided token
+                      solutions:
+                        - Please check if the token is correct
+        500:
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples:
+                systemError:
+                  value:
+                    error: "Internal server error"
+                    userMessage: "An internal server error occurred"
+                    moreInfo:
+                      problems: [ "The server encountered an internal error" ]
+                      solutions: [ "Please try again later" ]
+  /v1/provision/{token}:
+    delete:
+      tags:
+        - TechAdapter
+      summary: Stop provision/unprovision task
+      description: |
+        Terminate a provision/unprovision task that is still running. 
+        
+        The tech adapter will use a request coming at this endpoint as a signal to stop the task. The provisioning coordinator will continue to poll the status of a provision/unprovision task by using the token that was returned by the provision/unprovision endpoint and not the one returned here.
+        
+        The task can be stopped only if the tech adapter supports it, otherwise a `501` error is returned.
+      operationId: terminateProvisioning
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Provision/Unprovision Task Token obtained after a call to the provision/unprovision endpoint
+          schema:
+            type: string
+            example: 3da5d0a2-9f3b-4a11-85a3-b5ddb73da032
+      responses:
+        200:
+          description: Termination Request result (sync)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningStatus'
+              examples: 
+                terminatedProvision:
+                  value:
+                    status: TERMINATED
+        202:
+          description: Termination Request has been accepted
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Termination Request token that can be used to poll the request status
+              examples: 
+                terminationAccepted:
+                  value: 3da5d0a2-9f3b-4a11-85a3-b5ddb73da032
+        400:
+          description: Invalid Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+              examples:
+                badToken:
+                  value:
+                    errors:
+                      - validation operation not found
+                    userMessage: There is no validation process with the provided token
+                    moreInfo:
+                      problems:
+                        - There is no validation process with the provided token
+                      solutions:
+                        - Please check if the token is correct
+        500:
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples: 
+                systemError:
+                  value:
+                    error: "Internal server error"
+                    userMessage: "An internal server error occurred"
+                    moreInfo:
+                      problems: [ "The server encountered an internal error" ]
+                      solutions: [ "Please try again later" ]
+        501:
+          description: Termination Request is not supported by this Tech Adapter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples: 
+                terminationNotSupported:
+                  value:
+                    error: "Termination Request is not supported"
+                    userMessage: "The Tech Adapter does not support the termination of the provision/unprovision task"
+                    moreInfo:
+                      problems: [ "The Tech Adapter does not support the termination of the provision/unprovision task" ]
+                      solutions: [ "Please contact the Tech Adapter provider" ]
+  /v1/updateacl:
+    post:
+      tags:
+        - TechAdapter
+      summary: Upsert the Access Control List
+      description: |
+        Create or update the Access Control List of an infrastructural component with the provided identities.
+        
+        The supplied list of identities refers to the users and groups that need to have access to the component. 
+        
+        This means, **Witboost always supplies the full list of identities** even if some of them already have access to the underlying infrastructural resource.
+      operationId: updateacl
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAclRequest'
+            examples:
+              aclRequest:
+                value:
+                  refs:
+                    - 'user:alice_mydomain.com'
+                    - 'user:bob_mydomain.com'
+                    - 'group:developers_mydomain.com'
+                    - 'group:finance_mydomain.com'
+                    - 'group:peopleops_mydomain.com'
+                  provisionInfo:
+                    request: '{"componentIdToProvision":"urn:dmb:dp:finance:a-system:0:component:0","dataProduct":{"id":"urn:dmb:dp:finance:a-system:0","components":[{"id":"urn:dmb:dp:finance:a-system:0:component:0","name":"S3 storage","description":"A system that does something","kind":"storage","version":"0.0.1"},{"id":"urn:dmb:dp:finance:a-system:0:component:1","name":"A system that does something","description":"A system that does something","kind":"outputport","version":"0.0.1"}]}}'
+                    result: '{"status":"COMPLETED","info":{"publicInfo":{"valid":true}}}'
+                  accessControlFields:
+                    additionalInfo: "This is an additional information field that was provided in the Access Control Request Template"
+        required: true
+      responses:
+        200:
+          description: Access Control List Upsert result (sync)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningStatus'
+              examples: 
+                successfulAclUpsert:
+                  value:
+                    status: COMPLETED
+                    info:
+                      publicInfo:
+                        valid: true
+                failedAclUpsert:
+                  value:
+                    status: FAILED
+                    info:
+                      publicInfo:
+                        valid: false
+                        error: Tech Adapter is not authorized to update the Access Control List
+        202:
+          description: Access Control List Upsert request has been accepted.
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Access Control List Upsert request token that can be used to poll the request status
+              examples: 
+                aclUpsertAccepted:
+                  value: 3da5d0a2-9f3b-4a11-85a3-b5ddb73da032
+        400:
+          description: Invalid Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+              examples: 
+                missingDescriptor:
+                  value:
+                    errors:
+                      - descriptor is required
+                    userMessage: The descriptor field is required
+                    moreInfo:
+                      problems:
+                        - The descriptor field is required
+                    solutions:
+                      - Please provide a valid descriptor
+        500:
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples: 
+                systemError:
+                  value:
+                    error: "Internal server error"
+                    userMessage: "An internal server error occurred"
+                    moreInfo:
+                      problems: 
+                        - "The server encountered an internal error"
+                      solutions:
+                        - "Please try again later"
+  /v1/reverse-provisioning:
+    post:
+      tags:
+        - TechAdapter
+      summary: Import an existing resource
+      description: |
+        Import an existing resource from the infrastructure into Witboost. 
+        
+        This operation is used to reverse provision a component that is already deployed in the target environment. 
+        
+        The reverse provisioning operation is used to import the current state of the component into Witboost, so that it can be tracked by the platform.
+      operationId: runReverseProvisioning
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReverseProvisioningRequest'
+            examples: 
+              reverseRequest: 
+                value: 
+                  useCaseTemplateId: "urn:dmb:utm:aws-s3-object:0"
+                  environment: "development"
+        required: true
+      responses:
+        200:
+          description: Reverse Provisioning Task result (sync)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReverseProvisioningStatus'
+              examples: 
+                successfulReverseProvision:
+                  value:
+                    status: COMPLETED
+                    updates:
+                      "metadata.fieldA": "valueA"
+                      "spec.mesh.description": "A system that does something"
+                    logs: 
+                      - timestamp: "2021-09-30T10:00:00Z"
+                        level: "INFO"
+                        message: "Reverse provisioning done"
+                failedReverseProvision:
+                  value:
+                    status: FAILED
+
+        202:
+          description: Reverse Provisioning Task has been accepted
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Reverse Provisioning Task token that can be used to poll the request status
+              examples: 
+                reverseProvisionAccepted:
+                  value: 3da5d0a2-9f3b-4a11-85a3-b5ddb73da032
+        400:
+          description: Invalid Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+              examples: 
+                missingDescriptor:
+                  value:
+                    errors:
+                      - descriptor is required
+                    userMessage: The descriptor field is required
+                    moreInfo:
+                      problems:
+                        - The descriptor field is required
+                    solutions:
+                      - Please provide a valid descriptor
+        500:
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples: 
+                systemError:
+                  value:
+                    error: "Internal server error"
+                    userMessage: "An internal server error occurred"
+                    moreInfo:
+                      problems: 
+                        - "The server encountered an internal error"
+                      solutions: 
+                        - "Please try again later"
+  /v1/reverse-provisioning/{token}/status:
+    get:
+      tags:
+        - TechAdapter
+      summary: Get status of an import task
+      description: |
+        Get the status and the results of a reverse provisioning operation.
+        
+        The reverse provisioning operation is used to import the current state of the component into Witboost, so that it can be tracked by the platform.
+      operationId: getReverseProvisioningStatus
+      parameters:
+        - name: token
+          in: path
+          description: Reverse Provisioning Task Token obtained after a call to the import endpoint
+          required: true
+          schema:
+            type: string
+            example: 3da5d0a2-9f3b-4a11-85a3-b5ddb73da032
+      responses:
+        200:
+          description: The request status and results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReverseProvisioningStatus'
+              examples:
+                runningReverseProvision:
+                  value:
+                    status: RUNNING
+                completedReverseProvision:
+                  value:
+                    status: COMPLETED
+                    updates:
+                      "metadata.fieldA": "valueA"
+                      "spec.mesh.description": "A system that does something"
+                    logs: 
+                      - timestamp: "2021-09-30T10:00:00Z"
+                        level: "INFO"
+                        message: "Reverse provisioning done"
+                failedReverseProvision:
+                  value:
+                    status: FAILED
+        400:
+          description: Invalid Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestValidationError'
+              examples:
+                badToken:
+                  value:
+                    errors:
+                      - reverse provisioning operation not found
+                    userMessage: There is no reverse provisioning process with the provided token
+                    moreInfo:
+                      problems:
+                        - There is no reverse provisioning process with the provided token
+                      solutions:
+                        - Please check if the token is correct
+        500:
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemError'
+              examples:   
+                systemError:
+                  value:
+                    error: "Internal server error"
+                    userMessage: "An internal server error occurred"
+                    moreInfo:
+                      problems: 
+                        - "The server encountered an internal error"
+                      solutions: 
+                        - "Please try again later"
+components:
+  schemas:
+    ValidationStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          description: |
+            The status of an async validation task can be:
+              - `RUNNING`: the validation task is still running
+              - `COMPLETED`: the operation is complete and the validation result is available (`info.publicInfo` field)
+              - `FAILED`: an exception occurred while running the validation task
+
+          type: string
+          enum: [ RUNNING, COMPLETED, FAILED ]
+        info:
+          $ref: '#/components/schemas/ValidationInfo'
+    UpdateAclRequest:
+      required:
+        - refs
+        - provisionInfo
+      type: object
+      properties:
+        refs:
+          type: array
+          description: |
+            Identities (i.e. users and groups) that should be registered in the Access Control List of the target component. 
+
+            The format of identities follows the Witboost format. Users are prefixed with `user:` and groups with `group:`.
+          example:
+            [
+              'user:alice_mydomain.com',
+              'user:bob_mydomain.com',
+              'group:developers_mydomain.com',
+              'group:finance_mydomain.com',
+              'group:peopleops_mydomain.com',
+            ]
+          items:
+            type: string
+        provisionInfo:
+          $ref: '#/components/schemas/ProvisionInfo'
+        accessControlFields:
+          type: object
+          description: |
+            A free-form object that can be used to store additional information about the access control list request. 
+            
+            These values are supplied from the user when using an Access Control Request Template on the UI.
+    DescriptorKind:
+      type: string
+      description: >
+        It can change according to the descriptor kind:
+          - `DATAPRODUCT_DESCRIPTOR`: Descriptor of a system, comprehensive of its components.
+          - `COMPONENT_DESCRIPTOR`: Descriptor of a component. Includes both the system descriptor (`dataProduct` object field) and the id of the component that is being provisioned (`componentIdToProvision` string field).
+          - `DATAPRODUCT_DESCRIPTOR_WITH_RESULTS`: Not being used in the scope of a tech adapter.
+      enum:
+        [
+          DATAPRODUCT_DESCRIPTOR,
+          COMPONENT_DESCRIPTOR,
+          DATAPRODUCT_DESCRIPTOR_WITH_RESULTS,
+        ]
+      example: DATAPRODUCT_DESCRIPTOR
+    ProvisioningRequest:
+      required:
+        - descriptorKind
+        - descriptor
+        - removeData
+      type: object
+      properties:
+        descriptorKind:
+          $ref: '#/components/schemas/DescriptorKind'
+        descriptor:
+          type: string
+          description: |
+            Resource descriptor in YAML format. Its structure changes according to `descriptorKind`. 
+            
+            **If a component is dependent on another one, the COMPONENT_DESCRIPTOR descriptor will be enriched with the Provisioning Info of the dependency component. This does NOT apply to validation endpoints**
+        latestEnrichedDescriptor:
+          type: string
+          description: |
+            *Filled only in case of provision/unprovision requests.*
+
+            System descriptor enriched with provisioning info generated during the latest (successful or failed) provisioning/unprovisioning operation for each component. 
+            
+            If available, provisioning information is reported in the `info` fields at both the system and component levels. 
+            The base schema for the `info` object is the same as [Info](#/components/schemas/Info), but additional fields may be included, such as the `latestProvisioningOperation` object. This object contains information about the most recent provisioning operation performed on the component, including the operation type (e.g. Deploy, Undeploy) in the `operation` field, as well as the status of the operation (e.g. NotStarted, Failed, Successful) in the `status` field.
+            
+            Please note that the information contained in a `info` object represents the most recent data provided by a tech adapter for the corresponding component. However, this information may not have been provided during the last system provisioning operation. For example, if the provisioning operation fails and the component's tech adapter is not called, the information doesn't change. Only the `latestProvisioningOperation` object always refers to the most recent provisioning operation on the system.
+        removeData:
+          type: boolean
+          default: false
+          description: If true, when a component is undeployed, its underlying data will also be deleted
+    ProvisioningStatus:
+      required:
+        - status
+        - result
+      type: object
+      properties:
+        status:
+          type: string
+          description: |
+            The status of the provisioning task:
+            - `RUNNING` task execution has not yet finished
+            - `COMPLETED` task execution has finished with success
+            - `FAILED` task execution has finished with some errors
+            - `TERMINATING` task is about to terminate. this state follows a termination request.
+            - `TERMINATED` task has been terminated as requested
+          enum:
+            - RUNNING
+            - COMPLETED
+            - FAILED
+            - TERMINATING
+            - TERMINATED
+        result:
+          deprecated: true
+          type: string
+        info:
+          $ref: '#/components/schemas/Info'
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Log'
+    ValidationResult:
+      description: Result of a validation operation on a provided descriptor
+      required:
+        - valid
+      type: object
+      properties:
+        valid:
+          description: Whether the provided descriptor is valid or not
+          type: boolean
+        error:
+          $ref: '#/components/schemas/ValidationError'
+    ProvisionInfo:
+      required:
+        - request
+        - result
+      type: object
+      description: 'Information related to the provisioning workflow of a system'
+      properties:
+        request:
+          type: string
+          description: 'Provisioning descriptor of type `COMPONENT_DESCRIPTOR` (see [Descriptor Kind](#/components/schemas/DescriptorKind) schema) in JSON format that has been used to provision the system.'
+        result:
+          type: string
+          description: 'Result message (e.g. a provisioning error or a success message returned by the specific provisioner in the [ProvisioningStatus](#/components/schemas/ProvisioningStatus))'
+    ValidationError:
+      description: Validation error related to a provided descriptor
+      required:
+        - errors
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: string
+    RequestValidationError:
+      required:
+        - errors
+      type: object
+      properties:
+        errors:
+          type: array
+          deprecated: true
+          items:
+            type: string
+        userMessage:
+          type: string
+          description: User-readable message to be displayed
+        input:
+          type: string
+          description: Optional field to include the file or descriptor that raised the error
+        inputErrorField:
+          type: string
+          description: Optional field to include the field path (in dot format) that raised the error
+        moreInfo:
+          $ref: "#/components/schemas/ErrorMoreInfo"
+    SystemError:
+      required:
+        - error
+      type: object
+      properties:
+        error:
+          type: string
+          deprecated: true
+        userMessage:
+          type: string
+          description: User-readable message to be displayed
+        input:
+          type: string
+          description: Optional field to include the file or descriptor that raised the error
+        inputErrorField:
+          type: string
+          description: Optional field to include the field path (in dot format) that raised the error
+        moreInfo:
+          $ref: "#/components/schemas/ErrorMoreInfo"
+    ErrorMoreInfo:
+      required:
+        - problems
+        - solutions
+      type: object
+      description: Object that will include the more in-depth, specific information about the error
+      properties:
+        problems:
+          type: array
+          description: "Array of possible multiple problems: i.e. multiple validations failed"
+          items:
+            type: string
+        solutions:
+          type: array
+          description: Array of possible solutions that the developer gives to the user to solve the issue
+          items:
+            type: string
+    Info:
+      type: object
+      required:
+        - publicInfo
+        - privateInfo
+      properties:
+        publicInfo:
+          type: object
+          description: >
+            Fields to display in the Marketplace UI.
+            Note that only the values compliant to specific structures will be rendered in the "Technical Information" card of the Marketplace pages. [Check the documentation](https://docs.internal.witboost.agilelab.it/docs/p3_tech/p3_customizations/p3_5_templates/techAdapter#technology-adapter-api-details) for additional details
+        privateInfo:
+          type: object
+          description: 'All the values in this object will be stored in the deployed descriptor, but will not be shown in the Marketplace UI'
+        aclInfo:
+          type: array
+          items:
+            $ref: '#/components/schemas/AclInfo'
+
+    AclInfo:
+      type: object
+      required:
+        - identity
+        - locked
+      properties:
+        identity:
+          type: string
+          description: User or group who has been granted access to a resource during the provisioning phase
+        locked:
+          type: boolean
+          description: Describes whether the user or group can be directly manipulated by the access control panel in Witboost
+    ValidationInfo:
+      type: object
+      required:
+        - publicInfo
+      properties:
+        publicInfo:
+          $ref: "#/components/schemas/ValidationResult"
+    Log:
+      type: object
+      required:
+        - timestamp
+        - level
+        - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          description: This is the severity level of the log
+          type: string
+          enum: [ DEBUG, INFO, WARNING , ERROR ]
+        message:
+          type: string
+        phase:
+          type: string
+    ReverseProvisioningRequest:
+      type: object
+      required:
+        - useCaseTemplateId
+        - environment
+      properties:
+        useCaseTemplateId:
+          type: string
+          description: Component's use case template id
+          example: urn:dmb:utm:op-standard:0.0.0
+        environment:
+          type: string
+          description: Target environment
+          example: production
+        params:
+          type: object
+          description: Reverse provisioning input params
+          example: {
+            "inputA": "value A",
+            "inputB": 1
+          }
+        catalogInfo:
+          type: object
+          description: Content of the current `catalog-info.yaml` of the component
+    ReverseProvisioningStatus:
+      required:
+        - status
+        - updates
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ RUNNING, COMPLETED, FAILED ]
+          description: >
+            - `RUNNING`: the reverse provisioning operation is still running
+            
+            - `COMPLETED`: the operation is complete and the `updates` object is ready
+            
+            - `FAILED`: an exception occurred while running the reverse provisioning operation (additional details could be found in the `logs` array)
+        updates:
+          type: object
+          description: Field updates to be applied to the component's `catalog-info.yaml`. See the Reverse Provisioning documentation to learn more about the syntax of this object.
+          example: {
+            "metadata.fieldA": "Value A",
+            "spec.mesh.description": "Updated value",
+            "spec.fieldB": {
+              "subfieldA": "Value A",
+              "subfieldB": 1
+            }
+          }
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Log'

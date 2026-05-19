@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bota.fullname" . }}
+  labels:
+    app: {{ include "bota.name" . }}
+    {{- include "bota.labels" . | nindent 4 }}
+  {{- if .Values.annotations }}
+  annotations:
+    {{- toYaml .Values.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "bota.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "bota.name" . }}
+        {{- include "bota.labels" . | nindent 8 }}
+    spec:
+      {{- if .Values.dockerRegistrySecretName }}
+      imagePullSecrets:
+        - name: {{ .Values.dockerRegistrySecretName }}
+      {{- end }}
+      {{- if include "bota.serviceAccountName" . }}
+      serviceAccountName: {{ include "bota.serviceAccountName" . }}
+      {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "bota.fullname" . }}-config
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ .Values.image.registry }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8085
+              protocol: TCP
+          {{- if .Values.securityContext }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.resources }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- end }}
+          env:
+            - name: ONTOLOGY_TA_DB_NAME
+              value: {{ .Values.dbName | quote }}
+            - name: ONTOLOGY_TA_DB_SCHEMA
+              value: {{ .Values.dbSchema | quote }}
+            - name: ONTOLOGY_TA_DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: witboost-secrets
+                  key: WITBOOST_DB_HOST
+            - name: ONTOLOGY_TA_DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: witboost-secrets
+                  key: WITBOOST_DB_PORT
+            - name: ONTOLOGY_TA_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: witboost-secrets
+                  key: WITBOOST_DB_USERNAME
+            - name: ONTOLOGY_TA_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: witboost-secrets
+                  key: WITBOOST_DB_PASSWORD
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: optional:file:/opt/docker/etc/configs/application-production.yaml
+          {{- if .Values.extraEnvVars }}
+          {{- toYaml .Values.extraEnvVars | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /opt/docker/etc/configs

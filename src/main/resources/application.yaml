@@ -1,0 +1,49 @@
+spring:
+  main:
+    banner-mode: off
+  application:
+    name: ontology-tech-adapter
+  datasource:
+    url: ${app.db.url}
+    username: ${app.db.username}
+    password: ${app.db.password}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    create-schemas: true
+    schemas: ${app.db.schema}
+    baseline-on-migrate: true
+    placeholder-replacement: false
+
+server:
+  port: 8085
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+
+app:
+  db:
+    name: ${ONTOLOGY_TA_DB_NAME:ontology_ta}
+    schema: ${ONTOLOGY_TA_DB_SCHEMA:ontology_ta}
+    host: ${ONTOLOGY_TA_DB_HOST:${WITBOOST_DB_HOST:localhost}}
+    port: ${ONTOLOGY_TA_DB_PORT:${WITBOOST_DB_PORT:5432}}
+    username: ${ONTOLOGY_TA_DB_USERNAME:${WITBOOST_DB_USERNAME:postgres}}
+    password: ${ONTOLOGY_TA_DB_PASSWORD:${WITBOOST_DB_PASSWORD:postgrespassword}}
+    url: jdbc:postgresql://${app.db.host}:${app.db.port}/${app.db.name}?currentSchema=${app.db.schema}
+  graph:
+    preset: skos
+  witboost:
+    kgm:
+      base-url: ${KGM_BASE_URL:http://kgm:8080}
+      source-id: ${KGM_SOURCE_ID:ontology-ta}
