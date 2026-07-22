@@ -44,7 +44,7 @@ build/
 *.log
 
 ### HELM ###
-
 helm/charts
+.values.*.yaml
 
 .metals
