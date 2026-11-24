@@ -2,6 +2,7 @@ package com.witboost.ontology.interfaces.rest;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -12,6 +13,10 @@ import com.witboost.ontology.application.GraphValidationException;
 import com.witboost.ontology.application.KgmClient;
 import com.witboost.ontology.application.MappingEngine;
 import com.witboost.ontology.application.PassthroughEngine;
+import com.witboost.ontology.application.PrefixResolver;
+import com.witboost.ontology.application.PresetMergeService;
+import com.witboost.ontology.config.GraphProperties;
+import com.witboost.ontology.domain.descriptor.DataProductDescriptor;
 import com.witboost.ontology.domain.graph.ParseResult;
 import com.witboost.ontology.domain.graph.ProvisionResult;
 import com.witboost.ontology.domain.validation.GraphValidationError;
@@ -161,6 +166,53 @@ class TechAdapterControllerTest {
             post("/v1/validate").contentType(MediaType.APPLICATION_JSON).content(VALID_REQUEST))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.valid").value(true));
+  }
+
+  @Test
+  void enrichmentFailure_validateAndProvision_returnStructuredErrorsWithoutIngestion()
+      throws Exception {
+    GraphProperties properties = new GraphProperties();
+    new PresetMergeService(properties).init();
+    properties.getDescriptor().setYamlLdPath("graph_definition");
+    properties.getDescriptor().getYamlLdEnrichment().getAddRootVerb().setEnabled(true);
+    PassthroughEngine engine = new PassthroughEngine(properties, new PrefixResolver(properties));
+    when(passthroughEngine.extractYamlLd(any()))
+        .thenAnswer(invocation -> engine.extractYamlLd(invocation.getArgument(0)));
+    String request =
+        new com.fasterxml.jackson.databind.ObjectMapper()
+            .writeValueAsString(
+                Map.of(
+                    "descriptorKind",
+                    "DATAPRODUCT_DESCRIPTOR",
+                    "removeData",
+                    false,
+                    "descriptor",
+                    "id: urn:dmb:dp:domain:test:0\ngraph_definition: '{\"@graph\":[]}'"));
+    mockMvc
+        .perform(post("/v1/validate").contentType(MediaType.APPLICATION_JSON).content(request))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.valid").value(false))
+        .andExpect(
+            jsonPath("$.error.errors[0]")
+                .value(
+                    org.hamcrest.Matchers.containsString(
+                        "yaml-ld-enrichment.add-root-verb requires exactly one distinct named root matching descriptor.root.type='skos:ConceptScheme' in the top-level @graph array of field 'graph_definition'; found 0.")));
+    verifyNoInteractions(graphService, mappingEngine, kgmClient);
+    when(graphService.provision(any()))
+        .thenAnswer(
+            invocation -> {
+              engine.extractYamlLd(invocation.<DataProductDescriptor>getArgument(0));
+              throw new AssertionError("Expected enrichment to reject the payload");
+            });
+    mockMvc
+        .perform(post("/v1/provision").contentType(MediaType.APPLICATION_JSON).content(request))
+        .andExpect(status().isBadRequest())
+        .andExpect(
+            jsonPath("$.errors[0]")
+                .value(
+                    org.hamcrest.Matchers.containsString(
+                        "yaml-ld-enrichment.add-root-verb requires exactly one distinct named root matching descriptor.root.type='skos:ConceptScheme' in the top-level @graph array of field 'graph_definition'; found 0.")));
+    verifyNoInteractions(mappingEngine, kgmClient);
   }
 
   // ── unprovision endpoint ──────────────────────────────────────────────────

@@ -3,6 +3,8 @@ package com.witboost.ontology.application;
 import com.witboost.ontology.config.GraphProperties;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.apache.jena.irix.IRIException;
+import org.apache.jena.irix.IRIx;
 import org.springframework.stereotype.Service;
 
 /**
@@ -56,6 +58,16 @@ public class PrefixResolver {
       }
     }
     return merged;
+  }
+
+  /** Checks for a valid absolute IRI, excluding blank-node identifiers. */
+  public boolean isAbsoluteIri(String value) {
+    try {
+      IRIx iri = IRIx.create(value);
+      return iri.isAbsolute() && !iri.hasViolations() && !value.startsWith("_:");
+    } catch (IRIException invalidIri) {
+      return false;
+    }
   }
 
   /**

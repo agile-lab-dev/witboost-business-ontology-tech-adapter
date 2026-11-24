@@ -59,7 +59,7 @@ class SkosPresetIntegrationTest {
     PrefixResolver prefixResolver = new PrefixResolver(props);
     IriDerivationService iriDerivationService = new IriDerivationService(props);
     MappingEngine mappingEngine = new MappingEngine(props, prefixResolver, iriDerivationService);
-    PassthroughEngine passthroughEngine = new PassthroughEngine(props);
+    PassthroughEngine passthroughEngine = new PassthroughEngine(props, prefixResolver);
 
     graphService =
         new GraphService(
@@ -377,7 +377,7 @@ class SkosPresetIntegrationTest {
     PrefixResolver prefixResolver = new PrefixResolver(props);
     IriDerivationService iriDerivationService = new IriDerivationService(props);
     MappingEngine mappingEngine = new MappingEngine(props, prefixResolver, iriDerivationService);
-    PassthroughEngine passthroughEngine = new PassthroughEngine(props);
+    PassthroughEngine passthroughEngine = new PassthroughEngine(props, prefixResolver);
     graphService =
         new GraphService(
             props, mappingEngine, passthroughEngine, graphCacheService, graphRepository);

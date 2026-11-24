@@ -73,6 +73,13 @@
             </exclusions>
         </dependency>
 
+        <!-- JSON-LD expansion -->
+        <dependency>
+            <groupId>com.apicatalog</groupId>
+            <artifactId>titanium-json-ld</artifactId>
+            <version>1.3.2</version>
+        </dependency>
+
         <!-- PostgreSQL / Flyway -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

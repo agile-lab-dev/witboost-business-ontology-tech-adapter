@@ -46,7 +46,7 @@ The adapter supports two provisioning strategies, selected automatically per des
 
 **Config A — YAML-to-RDF mapping** (default): The descriptor's concept list is parsed using configurable type, property, and relation mappings driven by `app.graph.preset`.
 
-**Config B — YAML-LD pass-through**: When `descriptor.yaml-ld-path` is configured and the referenced field is present in the descriptor, its JSON-LD content is stored verbatim. No concept-mapping logic runs.
+**Config B — YAML-LD pass-through**: When `descriptor.yaml-ld-path` is configured and the referenced field is present in the descriptor, its JSON-LD content is stored verbatim by default. Optional [root-verb enrichment](docs/configuration.md#optional-json-ld-root-verbs) uses root/prefix settings to add missing root verbs (e.g. `skos:inScheme`) to eligible nodes (e.g. `skos:Concept`). No concept-mapping logic runs.
 
 Each provisioned system occupies one row in a `graph_state` table present on a PostgreSQL Database. The read endpoint merges all rows into a single JSON-LD document on demand.
 

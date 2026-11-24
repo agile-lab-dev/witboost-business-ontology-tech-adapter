@@ -48,3 +48,5 @@ helm/charts
 .values.*.yaml
 
 .metals
+
+.sdkmanrc

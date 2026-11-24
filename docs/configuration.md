@@ -71,22 +71,25 @@ Controls how CURIE values (e.g. `skos:Concept`) are expanded to full IRIs.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `descriptor.business-concepts-path` | `String` | SKOS: `business_concepts` | Dot-notation path from the descriptor root to the list of concept entries (e.g. `concepts` or `data.items`). |
-| `descriptor.yaml-ld-path` | `String` | `null` | Activates Config B (pass-through). When set, the adapter reads the JSON-LD payload from this descriptor field and stores it verbatim. |
+| `descriptor.yaml-ld-path` | `String` | `null` | Activates Config B (pass-through). Reads this descriptor field verbatim unless optional enrichment is enabled. |
 | `descriptor.yaml-ld-required` | `Boolean` | `false` | When `true` and `yaml-ld-path` is configured but absent in the descriptor, returns a validation error. When `false`, falls through to Config A. |
+| `descriptor.yaml-ld-enrichment.add-root-verb.enabled` | `Boolean` | `false` | Enables `descriptor.yaml-ld-enrichment.add-root-verb` in Config B. Reuses `descriptor.root.type` to detect the existing root by explicit `rdf:type` in the input RDF graph, and `descriptor.root.verb` to add missing verbs from eligible nodes to that root. Exactly one distinct named root must match; zero or multiple matches cause validation to fail. |
+| `descriptor.yaml-ld-enrichment.add-root-verb.types` | `List<String>` | `[]` | RDF types (CURIEs or full IRIs) eligible for a missing `descriptor.root.verb` link to the root resource. When non-empty, a node must explicitly declare at least one listed type (e.g. `[owl:Class]` adds missing root links only to nodes typed `owl:Class`). When empty, all otherwise eligible, explicitly typed nodes are accepted. |
 
 ---
 
 ### `descriptor.root`
 
-Controls how the descriptor itself is materialised as an RDF resource (the "root concept"). Only applies when `is-concept: true`.
-
+Controls how Config A materialises the descriptor as an RDF resource (the "root concept")
+when `is-concept: true`. In Config B, `descriptor.yaml-ld-enrichment.add-root-verb` also
+reuses only the effective static `type` and `verb`.
 
 | Field                        | Type                    | Default                                                                  | Description                                                                                                                                                                                               |
 |------------------------------|-------------------------|--------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `root.is-concept`            | `Boolean`               | SKOS: `true`                                                             | When `true`, the descriptor is provisioned as an RDF resource. When `false` or absent, only the concept list is provisioned.                                                                              |
-| `root.type`                  | `String` (CURIE or IRI) | SKOS: `skos:ConceptScheme`                                               | RDF class assigned to the root resource. When absent, falls back to `concept-mapping.type`                                                                                                                |
+| `root.type`                  | `String` (CURIE or IRI) | SKOS: `skos:ConceptScheme`                                               | RDF class assigned to the root resource. When absent, falls back to `concept-mapping.type`. Also used in Config B by `descriptor.yaml-ld-enrichment.add-root-verb` to detect the existing root by its explicit `rdf:type`. |
 | `root.type-field`            | `String`                | `null`                                                                   | Descriptor field name from which the root's RDF type is read per-deployment. Wins over `root.type` when present and non-blank. When absent, falls back to `concept-mapping.type-field`. |
-| `root.verb`                  | `String` (CURIE or IRI) | SKOS: `skos:inScheme`                                                    | RDF predicate linking each child concept to the root resource.                                                                                                                                                                                                                         |
+| `root.verb`                  | `String` (CURIE or IRI) | SKOS: `skos:inScheme`                                                    | RDF predicate linking each child concept to the root resource. Also used in Config B by `descriptor.yaml-ld-enrichment.add-root-verb` to add missing verbs from eligible nodes to the existing root.                                                                                   |
 | `root.verb-field`            | `String`                | `null`                                                                   | Descriptor field name from which the root verb is read per-deployment. Wins over `root.verb` when present and non-blank.                                                                                                                                                               |
 | `root.iri-field`             | `String`                | `null`                                                                   | Descriptor field name used as the root's subject IRI. When absent, falls back to `concept-mapping.iri-field`. When that is also absent or the field has no value, the IRI is derived from the system URN.                                                                              |
 | `root.name-field`            | `String`                | `null`                                                                   | Descriptor field name used as the root's display name (affects IRI derivation when `iri-field` is also absent). When absent, falls back to `concept-mapping.name-field`.                                                                                                               |
@@ -223,10 +226,22 @@ app:
 
       yaml-ld-path: null          # If set, enables Config B (YAML-LD pass-through).
                                   # The adapter reads the JSON-LD payload from this
-                                  # descriptor field and stores it verbatim.
+                                  # descriptor field and stores it verbatim unless
+                                  # optional enrichment is enabled below.
       yaml-ld-required: false     # When true and yaml-ld-path is set but the field is
                                   # absent in the descriptor, returns a validation error.
                                   # When false, falls through to Config A without error.
+      yaml-ld-enrichment:
+        add-root-verb:
+          enabled: false         # If set, add descriptor.root.verb from eligible nodes to the
+                                  # existing root in the inputJSON-LD payload (if missing).
+                                  # Examples: skos:inScheme from concepts to a scheme;
+                                  # rdfs:isDefinedBy from OWL classes/properties to an ontology.
+                                  # Exactly one distinct named root must have an explicit
+                                  # rdf:type matching descriptor.root.type; otherwise,
+                                  # validation fails.
+          types: []              # Restrict eligible nodes by type (IRIs or configured CURIEs) to be enriched with the configured root verb.
+                                  # Empty accepts all otherwise eligible, explicitly typed nodes.
 
       root:
         is-concept: true          # When true, the descriptor itself becomes an RDF resource.
@@ -473,6 +488,104 @@ graph_definition:
 **Same config, descriptor without `graph_definition`** → falls through to
 Config A (SKOS preset maps `business_concepts` as normal).
 
+### Optional YAML-LD Pass-through (Config B) Root Verbs enrichment
+
+Enable enrichment to add missing verbs from existing JSON-LD entities to a root already present in
+the payload. With the SKOS preset, `root.type` defaults to `skos:ConceptScheme`
+and `root.verb` to `skos:inScheme`:
+
+```yaml
+app:
+  graph:
+    descriptor:
+      yaml-ld-path: graph_definition
+      yaml-ld-enrichment:
+        add-root-verb:
+          enabled: true
+          types: ["skos:Concept"]
+```
+
+For custom OWL, reuse the existing prefix and root settings:
+
+```yaml
+app:
+  graph:
+    preset: custom
+    prefixes:
+      literals:
+        owl: "http://www.w3.org/2002/07/owl#"
+        rdfs: "http://www.w3.org/2000/01/rdf-schema#"
+    descriptor:
+      yaml-ld-path: graph_definition
+      root:
+        type: "owl:Ontology"
+        verb: "rdfs:isDefinedBy"
+      yaml-ld-enrichment:
+        add-root-verb:
+          enabled: true
+          types: ["owl:Class", "owl:ObjectProperty", "owl:DatatypeProperty"]
+```
+
+#### Input and Output
+
+**Input** (value of the `graph_definition` descriptor field):
+
+```json
+{
+  "@context": {
+    "ex": "https://example.org/",
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#"
+  },
+  "@graph": [
+    { "@id": "ex:ontology", "@type": "owl:Ontology" },
+    { "@id": "ex:Person", "@type": "owl:Class" },
+    {
+      "@id": "ex:Company",
+      "@type": "owl:Class",
+      "rdfs:isDefinedBy": { "@id": "ex:anotherOntology" }
+    }
+  ]
+}
+```
+
+Using the OWL configuration above, the adapter detects `ex:ontology` as the root
+and adds the missing `rdfs:isDefinedBy` verb from `ex:Person` to that root.
+`ex:Company` already has that verb, so its value is preserved.
+
+**Output** (original document with only the missing link added):
+
+Expansion is used only for analysis. Existing contexts, aliases, identifiers,
+types, values, and node placement are retained. New links use full IRIs for the
+predicate and root target. Serialization may change whitespace and formatting.
+If a subject has repeated descriptions, the link is added only to its first
+eligible entry; existing links anywhere in the payload are left unchanged.
+
+```json
+{
+  "@context": {
+    "ex": "https://example.org/",
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#"
+  },
+  "@graph": [
+    { "@id": "ex:ontology", "@type": "owl:Ontology" },
+    {
+      "@id": "ex:Person",
+      "@type": "owl:Class",
+      "http://www.w3.org/2000/01/rdf-schema#isDefinedBy": {
+        "@id": "https://example.org/ontology"
+      }
+    },
+    {
+      "@id": "ex:Company",
+      "@type": "owl:Class",
+      "rdfs:isDefinedBy": { "@id": "ex:anotherOntology" }
+    }
+  ]
+}
+```
+
 ---
 
 ## Common Validation Errors
@@ -485,4 +598,3 @@ Config A (SKOS preset maps `business_concepts` as normal).
 | `Cannot resolve type for concept '...'` | `type-field` is configured but the concept entry has no matching field | Add the field to the entry or remove the `type-field` override |
 | `Field 'X' required by yaml-ld-path is absent in descriptor` | `yaml-ld-required: true` and the pass-through field is missing | Add the field to the descriptor or set `yaml-ld-required: false` |
 | `Unknown prefix 'X' in adapter-config:app.graph.descriptor.root.type` | `root.type` uses an unregistered prefix | Register the prefix or fix the CURIE in config |
-

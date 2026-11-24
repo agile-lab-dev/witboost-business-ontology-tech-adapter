@@ -1,7 +1,9 @@
 package com.witboost.ontology.config;
 
 import com.witboost.ontology.application.PresetMergeService;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -59,7 +61,8 @@ public class GraphProperties {
 
     /**
      * When set, the adapter reads the JSON-LD payload from this descriptor field and stores it
-     * verbatim (Config B / YAML-LD pass-through). Concept-mapping logic is bypassed.
+     * verbatim unless enrichment is enabled (Config B / YAML-LD pass-through). Concept-mapping
+     * logic is bypassed.
      */
     private String yamlLdPath;
 
@@ -69,12 +72,31 @@ public class GraphProperties {
      */
     private boolean yamlLdRequired = false;
 
+    private YamlLdEnrichmentProperties yamlLdEnrichment = new YamlLdEnrichmentProperties();
+
     /**
      * Override settings that apply to the provisioned descriptor itself (the root concept). When
      * {@code isConcept = true} the descriptor is materialised as an RDF resource using these
      * settings.
      */
     private RootProperties root = new RootProperties();
+  }
+
+  /** Optional operations applied to an existing pass-through JSON-LD payload. */
+  @Data
+  public static class YamlLdEnrichmentProperties {
+    /** Adds missing links from eligible entities to the existing root. */
+    private AddRootVerbProperties addRootVerb = new AddRootVerbProperties();
+  }
+
+  /** Settings for root-link enrichment; existing JSON-LD descriptions are retained. */
+  @Data
+  public static class AddRootVerbProperties {
+    /** Whether root-link enrichment is enabled. Defaults to {@code false}. */
+    private boolean enabled;
+
+    /** Any-match entity-type filter; empty accepts all explicitly typed candidates. */
+    private List<String> types = new ArrayList<>();
   }
 
   @Data

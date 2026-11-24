@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * Implements Config B (YAML-LD pass-through): reads a JSON-LD payload directly from a descriptor
- * field and stores it verbatim as the system's graph partition, bypassing all concept-mapping logic
- * (FR-010, FR-011, FR-012).
+ * field and optionally enriches root links before storing the system's graph partition, bypassing
+ * all concept-mapping logic (FR-010, FR-011, FR-012).
  *
  * <p>The pass-through path is activated when {@code descriptor.yaml-ld-path} is configured in
  * {@code application.yaml}. If the field is absent at provision time:
@@ -34,9 +34,11 @@ public class PassthroughEngine {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final GraphProperties graphProperties;
+  private final RootVerbEnricher rootVerbEnricher;
 
-  public PassthroughEngine(GraphProperties graphProperties) {
+  public PassthroughEngine(GraphProperties graphProperties, PrefixResolver prefixResolver) {
     this.graphProperties = graphProperties;
+    this.rootVerbEnricher = new RootVerbEnricher(graphProperties, prefixResolver);
   }
 
   /**
@@ -51,7 +53,13 @@ public class PassthroughEngine {
    */
   public Optional<String> extractYamlLd(DataProductDescriptor descriptor) {
     String yamlLdPath = graphProperties.getDescriptor().getYamlLdPath();
+    boolean enrichmentEnabled =
+        graphProperties.getDescriptor().getYamlLdEnrichment().getAddRootVerb().isEnabled();
     if (yamlLdPath == null || yamlLdPath.isBlank()) {
+      if (enrichmentEnabled) {
+        throw RootVerbEnricher.createValidationException(
+            "descriptor.yaml-ld-path", "requires a nonblank descriptor.yaml-ld-path.");
+      }
       return Optional.empty();
     }
 
@@ -70,6 +78,9 @@ public class PassthroughEngine {
     }
 
     String jsonLdString = toJsonString(fieldValue, yamlLdPath);
+    if (enrichmentEnabled) {
+      jsonLdString = rootVerbEnricher.enrich(jsonLdString, descriptor, yamlLdPath);
+    }
     log.debug(
         "Extracted yaml-ld pass-through from field '{}' for descriptor {}",
         yamlLdPath,

@@ -1,10 +1,12 @@
 package com.witboost.ontology.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.witboost.ontology.WitboostNamespaces;
@@ -18,6 +20,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.jena.riot.Lang;
+import org.apache.jena.riot.RDFParser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -94,6 +98,71 @@ class GraphServicePassthroughTest {
     verify(graphRepository, org.mockito.Mockito.times(2))
         .upsert(eq("urn:dmb:dp:domain:registry-a:0"), contentCaptor.capture());
     assertThat(contentCaptor.getAllValues().get(1)).isEqualTo(secondJsonLd);
+  }
+
+  @Test
+  void provision_enrichment_storesLinksVisibleInMergedGraph() {
+    GraphProperties properties = enrichmentProperties();
+    service =
+        new GraphService(
+            properties,
+            mappingEngine,
+            new PassthroughEngine(properties, new PrefixResolver(properties)),
+            graphCacheService,
+            graphRepository);
+    DataProductDescriptor descriptor = descriptor("urn:dmb:dp:domain:enriched:0");
+    descriptor.setExtraField(
+        "graph_definition",
+        """
+        {"@graph":[
+          {"@id":"https://example.org/scheme","@type":"http://www.w3.org/2004/02/skos/core#ConceptScheme"},
+          {"@id":"https://example.org/concept","@type":"http://www.w3.org/2004/02/skos/core#Concept"}
+        ]}
+        """);
+    service.provision(descriptor);
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    verify(graphRepository).upsert(eq(descriptor.getId()), payload.capture());
+    verify(graphCacheService).invalidate();
+    verifyNoInteractions(mappingEngine);
+    when(graphRepository.findAll())
+        .thenReturn(
+            List.of(new GraphPartition(descriptor.getId(), payload.getValue(), Instant.EPOCH)));
+    when(graphCacheService.getOrBuild(any()))
+        .thenAnswer(
+            invocation -> invocation.<java.util.function.Supplier<String>>getArgument(0).get());
+    var merged = RDFParser.fromString(service.getJsonLd()).lang(Lang.JSONLD11).toModel();
+    assertThat(
+            merged.contains(
+                merged.createResource("https://example.org/concept"),
+                merged.createProperty(SkosPresetDefinition.SKOS_NS + "inScheme"),
+                merged.createResource("https://example.org/scheme")))
+        .isTrue();
+  }
+
+  @Test
+  void provision_enrichmentFailure_hasNoSideEffects() {
+    GraphProperties properties = enrichmentProperties();
+    service =
+        new GraphService(
+            properties,
+            mappingEngine,
+            new PassthroughEngine(properties, new PrefixResolver(properties)),
+            graphCacheService,
+            graphRepository);
+    DataProductDescriptor descriptor = descriptor("urn:dmb:dp:domain:invalid:0");
+    descriptor.setExtraField("graph_definition", "{\"@graph\":[]}");
+    assertThatThrownBy(() -> service.provision(descriptor))
+        .isInstanceOf(GraphValidationException.class);
+    verifyNoInteractions(graphRepository, graphCacheService, mappingEngine);
+  }
+
+  private GraphProperties enrichmentProperties() {
+    GraphProperties properties = new GraphProperties();
+    new PresetMergeService(properties).init();
+    properties.getDescriptor().setYamlLdPath("graph_definition");
+    properties.getDescriptor().getRoot().setIsConcept(false);
+    properties.getDescriptor().getYamlLdEnrichment().getAddRootVerb().setEnabled(true);
+    return properties;
   }
 
   // ── (c) unprovision removes the partition ─────────────────────────────────

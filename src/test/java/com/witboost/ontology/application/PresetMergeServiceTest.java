@@ -6,9 +6,13 @@ import com.witboost.ontology.WitboostNamespaces;
 import com.witboost.ontology.config.GraphPreset;
 import com.witboost.ontology.config.GraphProperties;
 import com.witboost.ontology.config.SkosPresetDefinition;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 @ExtendWith(MockitoExtension.class)
 class PresetMergeServiceTest {
@@ -48,6 +52,25 @@ class PresetMergeServiceTest {
         .containsEntry("wb", WitboostNamespaces.WB_NS);
     assertThat(props.getDescriptor().getBusinessConceptsPath()).isEqualTo("business_concepts");
     assertThat(props.getConceptMapping().getTypeField()).isEqualTo("type");
+    var enrichment = props.getDescriptor().getYamlLdEnrichment().getAddRootVerb();
+    assertThat(enrichment.isEnabled()).isFalse();
+    assertThat(enrichment.getTypes()).isEmpty();
+  }
+
+  @Test
+  void enrichment_nestedOptions_bindWithoutChangingRootDefaults() {
+    var source =
+        new MapConfigurationPropertySource(
+            Map.of(
+                "app.graph.descriptor.yaml-ld-enrichment.add-root-verb.enabled", "true",
+                "app.graph.descriptor.yaml-ld-enrichment.add-root-verb.types[0]", "skos:Concept"));
+    GraphProperties properties =
+        new Binder(source).bind("app.graph", Bindable.of(GraphProperties.class)).get();
+    service(properties);
+    var enrichment = properties.getDescriptor().getYamlLdEnrichment().getAddRootVerb();
+    assertThat(enrichment.isEnabled()).isTrue();
+    assertThat(enrichment.getTypes()).containsExactly("skos:Concept");
+    assertThat(properties.getDescriptor().getRoot().getType()).isEqualTo("skos:ConceptScheme");
   }
 
   // ── (b) SKOS preset with additionalProperties → merged onto preset ─────────
